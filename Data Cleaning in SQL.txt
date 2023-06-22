@@ -1,0 +1,194 @@
+/* 
+Clening Data in SQL Queries
+*/
+
+
+
+SELECT *
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+
+-- Step 1: Standardize Date Format 
+--- Identify column containing the date values (SaleDate)
+--- Convert the date values to a standardized format using the CONVERT function
+--- Create a new column (SaleDateConverted) to store the standardized dates
+--- Update the values in the new column with the converted dates
+
+
+SELECT SaleDate
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+
+SELECT SaleDate, CONVERT(Date,SaleDate)
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+
+ALTER TABLE NashvilleHousing
+ADD SaleDateConverted Date;
+
+UPDATE NashvilleHousing
+SET SaleDateConverted = CONVERT(Date,SaleDate)
+
+
+-- Step 2: Populating Property Address Data
+-- If PropertyAddress is NULL, populate it with the address from the matching ParcelID
+--- Identify column containing the date values (PropertyAddress, ParcelID)
+--- Find records where PropertyAddress is NULL
+--- Join the table to itself based on ParcelID to compare PropertyAddress values
+--- Update the NULL PropertyAddress values with the corresponding non-NULL values from the matching ParcelID records
+
+
+SELECT PropertyAddress
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+WHERE PropertyAddress is NULL
+
+-- Join the table to itself to check for matching ParcelID with populated address
+
+SELECT a.ParcelID, a.PropertyAddress, b.ParcelID, b.PropertyAddress, ISNULL(a.PropertyAddress,b.PropertyAddress)
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing a
+JOIN [Data Cleaning in SQL].dbo.NashvilleHousing b
+	on a.ParcelID = b.ParcelID
+	AND a.[UniqueID ] <> b.[UniqueID ]
+WHERE a.PropertyAddress is NULL
+
+-- Update PropertyAddress with the populated address from matching ParcelID
+
+Update a
+SET PropertyAddress = ISNULL(a.PropertyAddress,b.PropertyAddress)
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing a
+JOIN [Data Cleaning in SQL].dbo.NashvilleHousing b
+	on a.ParcelID = b.ParcelID
+	AND a.[UniqueID ] <> b.[UniqueID ]
+WHERE a.PropertyAddress  is null
+
+
+-- Step 3: Breaking out Address into individual columns (Address, City, State)
+-- Splitting PropertyAddress column into Address and City columns
+--- Identify column containing the date values (PropertyAddress)
+--- Use string manipulation functions like SUBSTRING and CHARINDEX to split the address into individual components (Address, City)
+--- Add new columns (PropertySplitAddress, PropertySplitCity) to the table
+--- Update the new columns with the respective split address components
+
+
+SELECT PropertyAddress
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+--WHERE PropertyAddress is NULL
+--ORDER BY ParcelID
+
+-- Extracting Address and City from PropertyAddress
+
+SELECT
+SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1) AS Address
+, SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1 , LEN(PropertyAddress)) AS Address
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+
+-- Cant seperate one column into two others columns without creating new columns for Address and City
+-- Adds the table
+
+ALTER TABLE [Data Cleaning in SQL].dbo.NashvilleHousing
+Add PropertySplitAddress Nvarchar(255);
+
+--Adds the results
+
+UPDATE [Data Cleaning in SQL].dbo.NashvilleHousing
+SET PropertySplitAddress = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1)
+
+ALTER TABLE [Data Cleaning in SQL].dbo.NashvilleHousing
+Add PropertySplitCity Nvarchar(255);
+
+UPDATE [Data Cleaning in SQL].dbo.NashvilleHousing
+SET PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1 , LEN(PropertyAddress))
+
+
+-- Step 4: Splitting OwnerAddress into individual columns (Address, City, State)
+-- Splitting OwnerAddress column into Address, City, and State columns
+--- Identify the column containing the owner address (OwnerAddress)
+--- Use string manipulation functions like PARSENAME and REPLACE to split the address into individual components (Address, City, State)
+--- Add new columns (OwnerSplitAddress, OwnerSplitCity, OwnerSplitState) to the table
+--- Update the new columns with the respective address components
+
+
+SELECT OwnerAddress
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+
+-- Extracting Address, City, and State from OwnerAddress
+
+SELECT 
+PARSENAME(REPLACE(OwnerAddress, ',','.') , 3)
+,PARSENAME(REPLACE(OwnerAddress, ',','.') , 2)
+,PARSENAME(REPLACE(OwnerAddress, ',','.') , 1)
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+
+-- Creating new columns for Address, City, and State
+
+ALTER TABLE [Data Cleaning in SQL].dbo.NashvilleHousing
+Add OwnerSplitAddress Nvarchar(255);
+
+UPDATE [Data Cleaning in SQL].dbo.NashvilleHousing
+SET OwnerSplitAddress = PARSENAME(REPLACE(OwnerAddress, ',','.') , 3)
+
+
+ALTER TABLE [Data Cleaning in SQL].dbo.NashvilleHousing
+Add OwnerSplitCity Nvarchar(255);
+
+UPDATE [Data Cleaning in SQL].dbo.NashvilleHousing
+SET OwnerSplitCity = PARSENAME(REPLACE(OwnerAddress, ',','.') , 2)
+
+
+ALTER TABLE [Data Cleaning in SQL].dbo.NashvilleHousing
+Add OwnerSplitState Nvarchar(255);
+
+UPDATE [Data Cleaning in SQL].dbo.NashvilleHousing
+SET OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',','.') , 1)
+
+
+-- Step 5: Change 'Y' and 'N' to 'Yes' and 'No' in "Sold As Vacant" field
+--- Identify the column containing the values 'Y' and 'N' (SoldAsVacant)
+--- Perform an update statement using a CASE statement to replace 'Y' with 'Yes' and 'N' with 'No' in the SoldAsVacant column
+
+
+SELECT DISTINCT(SoldAsVacant), COUNT(SoldAsVacant)
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+GROUP BY SoldAsVacant
+ORDER BY 2
+
+-- Mapping 'Y' and 'N' to 'Yes' and 'No' in SoldAsVacant columns
+
+UPDATE [Data Cleaning in SQL].dbo.NashvilleHousing
+SET SoldAsVacant = CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
+	   WHEN SoldAsVacant = 'N' THEN 'No'
+	   ELSE SoldAsVacant
+	   END
+
+
+-- Step 6: Remove duplicates
+-- CTE & Windows functions to find where there are duplicate values
+--- Identify the columns that should be unique to each row (e.g., ParcelID, PropertyAddress, SalePrice, SaleDate, LegalReference)
+--- Use a common table expression (CTE) with the ROW_NUMBER() function to assign row numbers based on the selected columns
+--- Delete rows from the CTE where the row numver is greater than 1, effectively removing duplicates
+
+
+WITH RowNumCTE AS (
+SELECT *,
+	ROW_NUMBER() OVER (
+	PARTITION BY ParcelID,
+				 PropertyAddress,
+				 SalePrice,
+				 SaleDate,
+				 LegalReference
+				 ORDER BY
+					UniqueID
+					) row_num
+
+FROM [Data Cleaning in SQL].dbo.NashvilleHousing
+--ORDER BY ParcelID
+)
+DELETE
+FROM RowNumCTE
+WHERE row_num > 1
+
+
+-- Step 7: Delete unused columns
+--- Identify the columns that are no longer needed (OwnerAddress, TaxDistrict, PropertyAddress, SaleDate)
+--- Use the ALTER TABLE statement with the DROP COLUMN clause to remove the specified columns from the table
+
+
+ALTER TABLE [Data Cleaning in SQL].dbo.NashvilleHousing
+DROP COLUMN OwnerAddress, TaxDistrict, PropertyAddress, SaleDate
